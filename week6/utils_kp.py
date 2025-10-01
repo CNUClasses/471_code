@@ -12,7 +12,7 @@ import timm
 
 import pandas as pd
 from PIL import Image
-def getdatasets(data_dir, trn_csv, train_img_root, valid_pct=0.1, test_pct=0.1,verbose=False, random_seed=42 ):
+def getdataframes(data_dir, trn_csv, train_img_root, valid_pct=0.1, test_pct=0.1,verbose=False, random_seed=42 ):
 
     train_csv_tmp = data_dir / 'train_split.csv'
     val_csv_tmp   = data_dir / 'valid_split.csv'
@@ -46,5 +46,82 @@ def getdatasets(data_dir, trn_csv, train_img_root, valid_pct=0.1, test_pct=0.1,v
     train_df=pd.read_csv(train_csv_tmp)
     valid_df=pd.read_csv(val_csv_tmp)
     test_df =pd.read_csv(test_csv_tmp)
-
     return train_df, valid_df, test_df
+
+
+class PaddyMultitaskDataset(Dataset):
+    """
+    A custom PyTorch Dataset for multitask learning on the Paddy dataset.
+    This dataset supports three tasks:
+        1. Image classification of paddy disease labels.
+        2. Image classification of paddy varieties.
+        3. Regression of paddy plant age (normalized).
+    Args:
+        df (pd.DataFrame): DataFrame containing dataset metadata with columns:
+            - 'image_id': Image file names.
+            - 'label': Disease label for each image.
+            - 'variety': Variety label for each image.
+            - 'age': Age of the plant (numeric).
+        img_root (Path or str): Root directory containing images, organized by label subfolders.
+        transform (callable, optional): Optional transform to be applied on a sample image.
+    Attributes:
+        labels (List[str]): Sorted list of unique disease labels.
+        varieties (List[str]): Sorted list of unique variety labels.
+        label_to_idx (Dict[str, int]): Mapping from label names to integer indices.
+        variety_to_idx (Dict[str, int]): Mapping from variety names to integer indices.
+        age_mean (float): Mean of the 'age' column, used for normalization.
+        age_std (float): Standard deviation of the 'age' column, used for normalization.
+        num_label_classes (int): Number of unique disease labels.
+        num_variety_classes (int): Number of unique variety labels.
+    Returns:
+        tuple: (image, variety_index, normalized_age, label_index)
+            - image (Tensor): Transformed image tensor.
+            - variety_index (Tensor): Integer index of the variety label.
+            - normalized_age (Tensor): Normalized age value (float32).
+            - label_index (Tensor): Integer index of the disease label.
+    """
+
+    def __init__(self, df, img_root: Path, transform=None):
+        super().__init__()
+        self.df = df
+        self.img_root = Path(img_root)
+        self.transform = transform
+
+        self.labels = sorted(self.df['label'].astype(str).unique())
+        self.varieties = sorted(self.df['variety'].astype(str).unique())
+
+        self.label_to_idx = {s:i for i,s in enumerate(self.labels)}
+        self.variety_to_idx = {s:i for i,s in enumerate(self.varieties)}
+        self.df['age'] = pd.to_numeric(self.df['age'], errors='coerce')
+
+        #lets get stats so we can normalize age if we want
+        self.age_mean = float(self.df['age'].mean())
+        self.age_std = float(self.df['age'].std())
+        self.num_label_classes = len(self.labels)
+        self.num_variety_classes = len(self.varieties)
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        row = self.df.iloc[idx]
+        image_id = str(row['image_id'])
+        label_name = str(row['label'])
+        variety_name = str(row['variety'])
+        age_val = float(row['age'])
+
+        #get and normalize image
+        img_path = self.img_root / label_name / image_id
+        img = Image.open(img_path).convert('RGB')
+        if self.transform:
+            img = self.transform(img)
+
+        #get numerical label and variety
+        y_label = self.label_to_idx[label_name]
+        y_var = self.variety_to_idx[variety_name]
+
+        # normalize age to mean 0 and std 1
+        y_age = (age_val-self.age_mean) / self.age_std  
+
+        return img, torch.tensor(y_var, dtype=torch.long), torch.tensor(y_age, dtype=torch.float32), torch.tensor(y_label, dtype=torch.long)
+
