@@ -8,7 +8,49 @@ from torch.utils.data import DataLoader, Dataset, random_split
 
 from torchvision import datasets, transforms
 from pathlib import Path
+import timm
 
+def make_model(model_name, num_classes, device, verbose=False):
+    """Create and prepare a timm model for transfer learning.
+
+    This function:
+    - expects a timm model name and number of output classes
+    - will create a pretrained model (weights from ImageNet)
+    - freezes all parameters so the backbone is not trained initially
+    - later code will unfreeze the classifier/head only so you can warm-up the head
+
+    Args:
+        model_name (str): name of timm model (e.g. 'convnext_tiny')
+        num_classes (int): number of output classes for the classifier head
+        device (torch.device): device to move the model to
+        verbose (bool): print classifier info when True
+
+    Returns:
+        torch.nn.Module: the created model
+
+    Example Usage:
+        model = make_model('convnext_tiny', 10, device)
+    """
+    #pre trained =True or you get random weights
+    model = timm.create_model(model_name, pretrained=True, num_classes=num_classes)
+    if verbose: print("Classifier layer:", model.get_classifier())
+
+    # Freeze backbone; train classifier head first
+    for name, p in model.named_parameters():
+        p.requires_grad = False
+
+    # Unfreeze classifier / head only (name depends on model family; get via get_classifier())
+    clf_name = model.get_classifier()
+
+    #make sure the last classifier layer is trainable
+    for name, p in clf_name.named_parameters():
+        p.requires_grad = True
+
+    model = model.to(device)
+    return model
+
+# For a sweep of learning rates, reinitialize the model for each rate, train for a **few batches**, and save (learning rate, loss). <br>
+# When done plot the loss versus learning rate, then choose the largest learning rate on the descending slope—just before the loss starts rising.
 class LearningRateFinder:
     """
     Utility class to help find an optimal learning rate for training neural networks.
@@ -43,14 +85,15 @@ class LearningRateFinder:
     
     """
 
-    def __init__(self, model_fn, criterion, device):
-        self.model_fn = model_fn
+    def __init__(self, model_name, num_classes, criterion, device):
+        self.model_name = model_name
+        self.num_classes = num_classes  
         self.criterion = criterion
         self.device = device
         self.results = []
 
     def _reinit(self):
-        return self.model_fn().to(self.device)
+        return make_model(self.model_name, self.num_classes, self.device)
 
     def run(self, lr_list, train_loader, num_batches=5):
         self.results.clear()
@@ -62,10 +105,7 @@ class LearningRateFinder:
             model.train()
             it = iter(train_loader); losses = []
             for _ in range(num_batches):
-                try:
-                    xb, yb = next(it)
-                except StopIteration:
-                    it = iter(train_loader); xb, yb = next(it)
+                xb, yb = next(it)
                 xb, yb = xb.to(self.device), yb.to(self.device)
                 optimizer.zero_grad(set_to_none=True)
                 logits = model(xb)
