@@ -96,7 +96,7 @@ class PaddyMultitaskDataset(Dataset):
         self.df['age'] = pd.to_numeric(self.df['age'], errors='coerce')
 
         #lets get stats so we can normalize age if we want
-        #should save stats from training set and apply those to vali
+        #should save stats from training set and apply those to valid and test
         self.age_mean = float(self.df['age'].mean())
         self.age_std = float(self.df['age'].std())
 
