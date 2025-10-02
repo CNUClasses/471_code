@@ -90,13 +90,16 @@ class PaddyMultitaskDataset(Dataset):
         self.labels = sorted(self.df['label'].astype(str).unique())
         self.varieties = sorted(self.df['variety'].astype(str).unique())
 
+        #you have to convert strings to numbers for numerical processing
         self.label_to_idx = {s:i for i,s in enumerate(self.labels)}
         self.variety_to_idx = {s:i for i,s in enumerate(self.varieties)}
         self.df['age'] = pd.to_numeric(self.df['age'], errors='coerce')
 
         #lets get stats so we can normalize age if we want
+        #should save stats from training set and apply those to vali
         self.age_mean = float(self.df['age'].mean())
         self.age_std = float(self.df['age'].std())
+
         self.num_label_classes = len(self.labels)
         self.num_variety_classes = len(self.varieties)
 
