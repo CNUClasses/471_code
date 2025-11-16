@@ -49,7 +49,9 @@ class RAGHandle:
 def load_chroma(
     persist_dir: str,
     collection_name: str,
-    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+    embedding_model: str = "sentence-transformers/msmarco-distilbert-cos-v5",  #EMBED_MODEL_NAME = "sentence-transformers/msmarco-distilbert-cos-v5"
+    
+    # embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",  #EMBED_MODEL_NAME = "sentence-transformers/msmarco-distilbert-cos-v5"
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
     device: Optional[str] = None,
 ) -> RAGHandle:
