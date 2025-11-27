@@ -54,6 +54,7 @@ def load_chroma(
     # embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",  #EMBED_MODEL_NAME = "sentence-transformers/msmarco-distilbert-cos-v5"
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
     device: Optional[str] = None,
+    load_finetuned: bool = False,
 ) -> RAGHandle:
     """
     Load a persisted Chroma collection along with a dense embedder and a reranker.
@@ -78,7 +79,12 @@ def load_chroma(
     collection = client.get_collection(collection_name)
 
     # Load models
-    embedder = SentenceTransformer(embedding_model, device=device)  # bi-encoder
+    if(load_finetuned==True):
+        embedder= SentenceTransformer(f"models/{embedding_model}", device=device)  # bi-encoder
+        print(f"Loaded finetuned embedder from models/{embedding_model}")
+    else:
+        embedder = SentenceTransformer(embedding_model, device=device)  # bi-encoder
+        print(f"Loaded hugging face pretrained embedder: {embedding_model}")
     reranker = CrossEncoder(reranker_model, device=device)          # cross-encoder
 
     # Infer dimension for sanity checks if needed
