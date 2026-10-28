@@ -25,7 +25,7 @@ def getdataframes(data_dir, trn_csv, train_img_root, valid_pct=0.1, test_pct=0.1
 
         indices = np.arange(len(df))
         np.random.shuffle(indices) #shuffle the indexes before splitting
-        ten_percent = int(len(indices) * 0.1)
+        # ten_percent = int(len(indices) * 0.1)
 
         #get total numbers of each set
         num_tst=int(test_pct*len(indices))
